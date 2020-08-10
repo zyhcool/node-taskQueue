@@ -85,12 +85,13 @@ class MyQueue {
         })
     }
 
-    poll() {
+    async poll() {
         this.status = 'POLLING';
         if (this.queue.length > 0) {
             const task = this.queue.shift();
             const { fn, context, args, callback } = task;
 
+            await sleep(2);
             this.worker.once('message', (data) => {
                 if (data.event === 'done') {
                     callback(null, data.result);
@@ -126,6 +127,12 @@ module.exports = queue;
 
 
 
-
+function sleep(time) {
+    return new Promise((resolve, reject) => {
+        setTimeout(() => {
+            resolve();
+        }, time * 1000);
+    })
+}
 
 
