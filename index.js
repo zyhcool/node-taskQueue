@@ -1,8 +1,11 @@
 const { Worker } = require('worker_threads');
-const path = require('path')
+const path = require('path');
+const { EventEmitter } = require('events');
 
 const log = console.log;
 
+let id = 0;
+let workerPool = {};
 
 class Task {
     constructor(task) {
@@ -11,32 +14,27 @@ class Task {
 
     init(task) {
         this.check(task);
-        this.fn = task.fn;
-        this.context = task.context;
         this.args = task.args;
-        this.callback = null;
+        this.workId = null;
     }
 
     check(task) {
         if (!task) {
             console.error('task can\'t be empty');
         }
-        const { fn, context, args } = task;
-        if (!fn) {
-            console.error('fn must be provided');
-        }
-        if (['AsyncFunction', 'Function'].indexOf(fn.constructor.name) < 0) {
-            console.error('fn must be function');
-        }
-        if (context && typeof context !== 'object') {
-            console.error('context must be object')
-        }
+        const { args } = task;
         if (args && args.constructor.name !== 'Array') {
             task.args = [args];
         }
     }
 }
 
+class MyWork extends EventEmitter {
+    constructor() {
+        super();
+        this.workId = id++;
+    }
+}
 
 
 class MyQueue {
@@ -69,19 +67,21 @@ class MyQueue {
             console.error('max task exceed')
             return;
         }
+        const work = new MyWork();
         task = new Task(task);
+        task.workId = work.workId;
+        this.queue.push(task);
+        workerPool[work.workId] = work;
+        if (this.status !== 'POLLING') {
+            this.poll();
+        }
         return new Promise((resolve, reject) => {
-            task.callback = (error, data) => {
-                if (error) {
-                    reject(error);
-                    return;
-                };
+            work.once('error', (error) => {
+                reject(error);
+            });
+            work.once('success', (data) => {
                 resolve(data);
-            }
-            this.queue.push(task);
-            if (this.status !== 'POLLING') {
-                this.poll();
-            }
+            })
         })
     }
 
@@ -89,50 +89,32 @@ class MyQueue {
         this.status = 'POLLING';
         if (this.queue.length > 0) {
             const task = this.queue.shift();
-            const { fn, context, args, callback } = task;
+            const { args, workId } = task;
 
-            await sleep(2);
             this.worker.once('message', (data) => {
+                const work = workerPool[data.workId]
                 if (data.event === 'done') {
-                    callback(null, data.result);
+                    work.emit('success', data.result);
                 }
                 else if (data.event === 'error') {
-                    callback(data.error, null);
+                    work.emit('error', data.error);
                 }
+                delete workerPool[workId];
             })
-            this.worker.postMessage({ cmd: 'start', args })
+            this.worker.postMessage({ cmd: 'start', workId, args })
             log('result', this.length);
 
             this.poll();
         } else {
             this.status = 'IDLING';
             log(this.worker.listenerCount('message'))
-            // setTimeout(() => {
-            //     log(id++, 'idling...')
-            //     this.poll();
-            // }, this.idleTime);
         }
     }
 
 
 }
 
-let queue = new MyQueue();
-module.exports = queue;
 
-
-
-
-
-
-
-
-function sleep(time) {
-    return new Promise((resolve, reject) => {
-        setTimeout(() => {
-            resolve();
-        }, time * 1000);
-    })
-}
+module.exports = new MyQueue();
 
 
