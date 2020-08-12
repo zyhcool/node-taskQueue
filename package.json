@@ -1,0 +1,21 @@
+{
+  "name": "queue",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "cpu": "node cpu-consume/server.js",
+    "one": "node one-thread/server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zyhcool/node-taskQueue.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/zyhcool/node-taskQueue/issues"
+  },
+  "homepage": "https://github.com/zyhcool/node-taskQueue#readme"
+}

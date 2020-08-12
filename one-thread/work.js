@@ -1,11 +1,11 @@
 const { parentPort } = require('worker_threads');
 const path = require('path');
 
-parentPort.on('message', (data) => {
+parentPort.on('message', async (data) => {
     if (data.cmd === 'start') {
-        let fn = require(path.resolve(__dirname, 'func.js'));
+        const fn = require(path.resolve(__dirname, 'cpuConsume.js'));
         try {
-            let result = fn.call(null, ...data.args);
+            const result = await fn.call(null, ...data.args);
             parentPort.postMessage({ event: 'done', result, workId: data.workId });
         }
         catch (e) {
