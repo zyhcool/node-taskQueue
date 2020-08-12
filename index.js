@@ -57,12 +57,22 @@ class MyQueue {
     init() {
         let worker = new Worker(path.resolve(__dirname, 'work.js'))
         this.worker = worker;
+        this.worker.on('message', (data) => {
+            const work = workerPool[data.workId]
+            if (data.event === 'done') {
+                work.emit('success', data.result);
+            }
+            else if (data.event === 'error') {
+                work.emit('error', data.error);
+            }
+            delete workerPool[data.workId];
+        })
+
         this.poll();
     }
 
 
     add(task) {
-        log('add', this.length);
         if (this.queue.length >= this.maxLength) {
             console.error('max task exceed')
             return;
@@ -90,24 +100,11 @@ class MyQueue {
         if (this.queue.length > 0) {
             const task = this.queue.shift();
             const { args, workId } = task;
-
-            this.worker.once('message', (data) => {
-                const work = workerPool[data.workId]
-                if (data.event === 'done') {
-                    work.emit('success', data.result);
-                }
-                else if (data.event === 'error') {
-                    work.emit('error', data.error);
-                }
-                delete workerPool[workId];
-            })
             this.worker.postMessage({ cmd: 'start', workId, args })
-            log('result', this.length);
 
             this.poll();
         } else {
             this.status = 'IDLING';
-            log(this.worker.listenerCount('message'))
         }
     }
 
