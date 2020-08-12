@@ -5,19 +5,18 @@ const { EventEmitter } = require('events');
 const log = console.log;
 
 let id = 0;
-let workerPool = {};
 
-class Task {
+class CustomWorker extends EventEmitter {
     constructor(task) {
+        super();
         this.init(task);
     }
 
     init(task) {
         this.check(task);
+        this.workId = id++;
         this.args = task.args;
-        this.workId = null;
     }
-
     check(task) {
         if (!task) {
             console.error('task can\'t be empty');
@@ -26,13 +25,6 @@ class Task {
         if (args && args.constructor.name !== 'Array') {
             task.args = [args];
         }
-    }
-}
-
-class MyWork extends EventEmitter {
-    constructor() {
-        super();
-        this.workId = id++;
     }
 }
 
@@ -45,7 +37,11 @@ class MyQueue {
         this.idleTime = options.idleTime || 1000;
         // 队列名称
         this.name = options.name || 'default'
+        // 任务队列
         this.queue = [];
+        // 队列池，事件回调
+        this.workPool = {};
+        // 当前状态 IDLING：等待任务；POLLING：正在消耗队列
         this.status = 'IDLING'
         this.init();
     }
@@ -58,14 +54,14 @@ class MyQueue {
         let worker = new Worker(path.resolve(__dirname, 'work.js'))
         this.worker = worker;
         this.worker.on('message', (data) => {
-            const work = workerPool[data.workId]
+            const work = this.workPool[data.workId]
             if (data.event === 'done') {
                 work.emit('success', data.result);
             }
             else if (data.event === 'error') {
                 work.emit('error', data.error);
             }
-            delete workerPool[data.workId];
+            delete this.workPool[data.workId];
         })
 
         this.poll();
@@ -77,11 +73,9 @@ class MyQueue {
             console.error('max task exceed')
             return;
         }
-        const work = new MyWork();
-        task = new Task(task);
-        task.workId = work.workId;
-        this.queue.push(task);
-        workerPool[work.workId] = work;
+        const work = new CustomWorker(task);
+        this.queue.push(work);
+        this.workPool[work.workId] = work;
         if (this.status !== 'POLLING') {
             this.poll();
         }
@@ -96,10 +90,12 @@ class MyQueue {
     }
 
     async poll() {
+        log('current queue length:', this.length, '\n', 'pool size:', Object.keys(this.workPool).length)
         this.status = 'POLLING';
         if (this.queue.length > 0) {
-            const task = this.queue.shift();
-            const { args, workId } = task;
+            const work = this.queue.shift();
+            const { args, workId } = work;
+
             this.worker.postMessage({ cmd: 'start', workId, args })
 
             this.poll();
