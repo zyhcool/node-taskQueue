@@ -5,15 +5,17 @@
  */
 function sleep(time) {
     return new Promise((resolve, reject) => {
-        setTimeout(() => {
-            resolve();
-        }, time * 1000);
+        let start = Date.now()
+        while (true) {
+            if (Date.now() - start >= time * 1000) {
+                resolve();
+                break;
+            }
+        }
     })
 }
 
 module.exports = async function sum(a, b) {
-    console.time('sum')
     await sleep(2);
-    console.timeEnd('sum')
     return a + b;
 }
