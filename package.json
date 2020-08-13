@@ -5,8 +5,10 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "cpu": "node cpu-consume/server.js",
-    "one": "node one-thread/server.js"
+    "cpu": "nodemon cpu-consume/server.js",
+    "one": "nodemon one-thread/server.js",
+    "multi": "nodemon multi-thread/server.js",
+    "pros": "nodemon multi-process/server.js"
   },
   "repository": {
     "type": "git",

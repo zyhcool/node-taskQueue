@@ -16,6 +16,6 @@ function sleep(time) {
 }
 
 module.exports = async function sum(a, b) {
-    await sleep(2);
+    await sleep(0.1);
     return a + b;
 }

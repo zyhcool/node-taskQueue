@@ -6,23 +6,20 @@ const log = console.log;
 
 let id = 0;
 
-/**
- * CustomWorker作为主线程和子线程的中间通信层，交换数据
- */
+// 将cWorkPool放到公共内存
+let cWorkerPool = {};
+
 class CustomWorker extends EventEmitter {
     constructor(task) {
         super();
         this.init(task);
     }
 
-    // 初始化
     init(task) {
         this.check(task);
         this.workId = id++;
         this.args = task.args;
     }
-
-    // 检查参数格式
     check(task) {
         if (!task) {
             console.error('task can\'t be empty');
@@ -34,9 +31,7 @@ class CustomWorker extends EventEmitter {
     }
 }
 
-/**
- * 任务队列
- */
+
 class TaskQueue {
     constructor(options = {}) {
         this.init(options);
@@ -51,29 +46,13 @@ class TaskQueue {
         this.maxLength = options.maxLength || 100;
         // 任务队列
         this.queue = [];
-        // 队列池，存放事件回调
-        this.cWorkerPool = {};
         // 当前状态 IDLE：等待任务；POLLING：正在消耗队列
         this.status = 'IDLE';
-
-        const worker = new Worker(path.resolve(__dirname, 'work.js'))
-        worker.on('message', (data) => {
-            const cWorker = this.cWorkerPool[data.workId]
-            if (data.event === 'done') {
-                cWorker.emit('success', data.result);
-            }
-            else if (data.event === 'error') {
-                cWorker.emit('error', data.error);
-            }
-            // 完成数据传递后，释放该cWorker在cWorkerPool中占用的空间
-            delete this.cWorkerPool[data.workId];
-        })
-        // 将子线程引用到worker属性
-        this.worker = worker;
+        // 维护threadPool线程池
+        this.threadPool = new ThreadPool({ max: 50 });
 
         this.poll();
     }
-
 
     add(task) {
         if (this.queue.length >= this.maxLength) {
@@ -81,7 +60,7 @@ class TaskQueue {
             return;
         }
         const cWorker = new CustomWorker(task);
-        this.cWorkerPool[cWorker.workId] = cWorker;
+        cWorkerPool[cWorker.workId] = cWorker;
         let promise = new Promise((resolve, reject) => {
             cWorker.once('error', (error) => {
                 reject(error);
@@ -98,25 +77,68 @@ class TaskQueue {
         return promise;
     }
 
-    /**
-     * 状态为POLLING时，轮询队列；状态为IDLE时，停止poll执行
-     */
     poll() {
         this.status = 'POLLING';
         if (this.queue.length > 0) {
             const cWorker = this.queue.shift();
             const { args, workId } = cWorker;
-            this.worker.postMessage({ cmd: 'start', workId, args })
+            const worker = this.threadPool.selectThread()
+            worker.postMessage({ cmd: 'start', workId, args })
             return this.poll();
         } else {
             this.status = 'IDLE';
         }
     }
-
-
 }
 
+/**
+ * 线程池ThreadPool类
+ */
+class ThreadPool {
+    constructor(options = {}) {
+        this.pool = [];
+        this.max = options.max || 30;
+        this.lastSelect = 0;
+        this.init(options);
+    }
+
+    // 开启多个线程，使用pool属性维护这些线程
+    init() {
+        let max = this.max;
+        while (max--) {
+            const worker = new Worker(path.resolve(__dirname, 'work.js'));
+            worker.on('message', (data) => {
+                const cWorker = cWorkerPool[data.workId];
+                switch (data.event) {
+                    case 'done':
+                        cWorker.emit('success', data.result);
+                        break;
+                    case 'error':
+                        cWorker.emit('error', data.error);
+                        break;
+                    default:
+                        break;
+                };
+                delete cWorkerPool[data.workId];
+
+            });
+            worker.on('error', (error) => {
+                console.error(error);
+            });
+            worker.on('exit', (exitcode) => {
+                log(`${worker.threadId} exit: ${exitcode}`);
+            })
+            this.pool.push(worker)
+        }
+    }
+
+    // 按顺序选择线程
+    selectThread() {
+        if (this.lastSelect >= this.pool.length) {
+            this.lastSelect = 0;
+        }
+        return this.pool[this.lastSelect++];
+    }
+}
 
 module.exports = new TaskQueue();
-
-
