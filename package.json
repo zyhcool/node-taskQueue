@@ -8,7 +8,8 @@
     "cpu": "nodemon cpu-consume/server.js",
     "one": "nodemon one-thread/server.js",
     "multi": "nodemon multi-thread/server.js",
-    "pros": "nodemon multi-process/server.js"
+    "pros": "nodemon multi-process/server.js",
+    "super": "nodemon super/server.js"
   },
   "repository": {
     "type": "git",
