@@ -1,14 +1,14 @@
-const vm = require('vm');
+class Singleton {
+    constructor(name) {
+        if (this.constructor.instance) {
+            return this.constructor.instance;
+        } else {
+            this.constructor.instance = this;
+        }
+        this.name = name;
+    }
+}
 
-const sandbox = {
-    animal: 'cat',
-    count: 2,
-    globalVar: 99
-};
-console.log(global)
-// vm.createContext(sandbox)
-console.log(global)
-
-vm.runInNewContext('globalVar *= 2;count=console.log', sandbox);
-
-console.log(sandbox)
+let a = new Singleton('zyh');
+let b = new Singleton('bbb');
+console.log(a, b)

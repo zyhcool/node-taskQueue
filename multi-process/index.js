@@ -78,17 +78,19 @@ class TaskQueue {
         return promise;
     }
 
-    async poll() {
-        this.status = 'POLLING';
-        if (this.queue.length > 0) {
-            const cWorker = this.queue.shift();
-            const { args, workId } = cWorker;
-            const worker = this.threadPool.selectThread()
-            worker.postMessage({ cmd: 'start', workId, args })
-            return this.poll();
-        } else {
-            this.status = 'IDLE';
-        }
+    poll() {
+        return setTimeout(() => {
+            if (this.queue.length > 0) {
+                this.status = 'POLLING';
+                const cWorker = this.queue.shift();
+                const { args, workId } = cWorker;
+                const worker = this.threadPool.selectThread()
+                worker.postMessage({ cmd: 'start', workId, args })
+                return this.poll();
+            } else {
+                this.status = 'IDLE';
+            }
+        }, 0);
     }
 }
 
